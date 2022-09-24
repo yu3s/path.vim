@@ -1,39 +1,44 @@
 vim9script
 
-def Filename_map(prefix: string, file: string): dict<any>
-	var abbr = fnamemodify(file, ':t')
-	var word = prefix .. abbr
-	var menu: string
+def Filename_map(prefix: string, files: list<string>): list<dict<any>>
+	var matches: list<dict<any>>
 
-	if isdirectory(file)
-		menu = '[dir]'
-		abbr = '/' .. abbr
-	else
-		menu = '[file]'
-		abbr = abbr
-	endif
+	for file in files
+		var abbr = fnamemodify(file, ':t')
+		var word = prefix .. abbr
+		var menu: string
 
-	return {
-				\ 'menu': menu,
-				\ 'word': word,
-				\ 'abbr': abbr,
-				\ 'icase': 1,
-				\ 'dup': 0
-				\ }
+		if isdirectory(file)
+			menu = '[dir]'
+			abbr = '/' .. abbr
+		else
+			menu = '[file]'
+			abbr = abbr
+		endif
+
+		matches->add({
+					\ 'menu': menu,
+					\ 'word': word,
+					\ 'abbr': abbr,
+					\ 'icase': 1,
+					\ 'dup': 0
+					\ })
+	endfor
+
+	return matches
 enddef
 
-#def Sort(item1: dict<any>, item2: dict<any>): dict<any>
-#	if item1.menu ==# '[dir]' && item2.menu !=# '[dir]'
-#		return -1
-#	endif
-#	if item1.menu !=# '[dir]' && item2.menu ==# '[dir]'
-#		return 1
-#	endif
-#	return 0
-#enddef
+def Sort(item1: dict<any>, item2: dict<any>): number
+	if item1["menu"] ==# '[dir]' && item2["menu"] !=# '[dir]'
+		return -1
+	endif
+	if item1['menu'] !=# '[dir]' && item2['menu'] ==# '[dir]'
+		return 1
+	endif
+	return 0
+enddef
 
-def Completor(ctx: dict<any>)
-	echomsg ctx
+def Completor(ctx: dict<any>): void
 	var bufnr = ctx['bufnr']
 	var typed = ctx['typed']
 	var col   = ctx['col']
@@ -42,6 +47,8 @@ def Completor(ctx: dict<any>)
 	var kwlen = len(kw)
 
 	var cwd: string
+	var glob: string
+	var pre: string
 
 	if kwlen < 1
 		return
@@ -53,10 +60,13 @@ def Completor(ctx: dict<any>)
 		cwd = kw
 	endif
 
-	var glob = fnamemodify(cwd, ':t') .. '.\=[^.]*'
-
+	if has('win32')
+		glob = fnamemodify(cwd, ':t') .. '*'
+	else
+		glob = fnamemodify(cwd, ':t') .. '.\=[^.]*'
+	endif
 	cwd  = fnamemodify(cwd, ':p:h')
-	var pre  = fnamemodify(kw, ':h')
+	pre  = fnamemodify(kw, ':h')
 
 	if pre !~ '/$'
 		pre = pre .. '/'
@@ -65,32 +75,22 @@ def Completor(ctx: dict<any>)
 	var cwdlen   = strlen(cwd)
 	var startcol = col - kwlen
 	var files    = split(globpath(cwd, glob), '\n')
+	var matches: list<dict<any>> = Filename_map(pre, files)
+	matches  = sort(matches, function('Sort'))
 
-	echomsg "files:"
-	echomsg files
-	#var matches  = map(files, (key, val) => Filename_map(pre, v:val))
-	#matches  = sort(matches, function('Sort'))
-
-	#echomsg matches
-
-	#call asyncomplete#complete(a:opt['name'], a:ctx, l:startcol, l:matches)
+	setl completeopt=menuone,noinsert,noselect
+	if startcol > 0
+		call complete(startcol, matches)
+	endif
 enddef
 
-export def g:Popup(): string
-#function! asyncomplete#context() abort
-#    let l:ret = {'bufnr':bufnr('%'), 'curpos':getcurpos(), 'changedtick':b:changedtick}
-#    let l:ret['lnum'] = l:ret['curpos'][1]
-#    let l:ret['col'] = l:ret['curpos'][2]
-#    let l:ret['filetype'] = &filetype
-#    let l:ret['filepath'] = expand('%:p')
-#    let l:ret['typed'] = strpart(getline(l:ret['lnum']),0,l:ret['col']-1)
-#    return l:ret
-#endfunction
-	var ctx = {'bufnr': bufnr('%'), 'curpos': getcurpos()}
-    ctx['lnum'] = ctx['curpos'][1]
-    ctx['col'] = ctx['curpos'][2]
-    ctx['filepath'] = expand('%:p')
-    ctx['typed'] = strpart(getline(ctx['lnum']), 0, ctx['col'] - 1)
-	Completor(ctx)
-	return ''
+export def Complete(): void
+	var ret = {'bufnr': bufnr('%'), 'curpos': getcurpos(), 'changedtick': b:changedtick}
+	ret['lnum'] = ret['curpos'][1]
+	ret['col'] = ret['curpos'][2]
+	ret['filetype'] = &filetype
+	ret['filepath'] = expand('%:p')
+	ret['typed'] = strpart(getline(ret['lnum']), 0, ret['col'] - 1)
+
+	Completor(ret)
 enddef
