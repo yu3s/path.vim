@@ -78,7 +78,6 @@ def Completor(ctx: dict<any>): void
 	var matches: list<dict<any>> = Filename_map(pre, files)
 	matches  = sort(matches, function('Sort'))
 
-	setl completeopt=menuone,noinsert,noselect
 	if startcol > 0
 		call complete(startcol, matches)
 	endif
