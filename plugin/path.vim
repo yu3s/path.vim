@@ -7,4 +7,4 @@ g:pathvim = 1
 
 import autoload 'path.vim'
 
-inoremap <buffer> <silent> / /<Cmd>call <SID>path.Complete()<CR>
+inoremap <buffer> <silent> / /<ScriptCmd>call path.Complete()<CR>
